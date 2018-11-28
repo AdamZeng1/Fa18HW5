@@ -135,6 +135,7 @@ public class LockManager {
         } else {
             System.out.println(2); //debug
             //Add to queue
+            transaction.block();
             LockRequest newRequest = new LockRequest(transaction, lockOnName);
             this.waitingQueue.add(newRequest);
         }
@@ -176,6 +177,7 @@ public class LockManager {
         Iterator iterator = this.waitingQueue.iterator();
         while (iterator.hasNext()) {
             LockRequest lockRequest = (LockRequest) iterator.next();
+            lockRequest.transaction.unblock();
             acquire(lockRequest.transaction, lockRequest.lock.name, lockRequest.lock.lockType);
         }
     }
