@@ -77,7 +77,22 @@ public class LockManager {
     public void acquireAndRelease(BaseTransaction transaction, ResourceName name,
                                   LockType lockType, List<ResourceName> releaseLocks)
     throws DuplicateLockRequestException, NoLockHeldException {
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        //TODO needs more work on acuquiring
+        Lock lockOnName = new Lock(name, lockType);
+        //Acquire a LOCKTYPE lock on NAME, for transaction TRANSACTION
+        if (this.transactionLocks.containsKey(transaction.getTransNum())) {
+            this.transactionLocks.get(transaction.getTransNum()).add(lockOnName);
+        } else {
+            List<Lock> list = new ArrayList<>();
+            list.add(lockOnName);
+            this.transactionLocks.put(transaction.getTransNum(), list);
+        }
+
+        //Releases all locks in RELEASELOCKS after acquiring the lock
+        for (int i = 0; i < releaseLocks.size(); i++) {
+            this.resourceLocks.remove(releaseLocks.get(i));
+        }
     }
 
     /**
@@ -91,7 +106,51 @@ public class LockManager {
      */
     public void acquire(BaseTransaction transaction, ResourceName name,
                         LockType lockType) throws DuplicateLockRequestException {
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        Lock lockOnName = new Lock(name, lockType);
+        boolean conflict = false;
+        Long sameTransactionLong = null;
+        //check if the requested lock is not compatible with another transaction's lock on the resource
+        for (Map.Entry<Long, List<Lock>> entry : this.transactionLocks.entrySet()) {
+            Long key = entry.getKey();
+            List<Lock> value = entry.getValue();
+            if (transaction.getTransNum() == key) {
+                sameTransactionLong = key;
+            } else {
+                for (int i = 0; i < value.size(); i++) {
+                    if (name == value.get(i).name) {
+                        if (!LockType.compatible(lockType, value.get(i).lockType)) {
+                            conflict = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        //Acquire a LOCKTYPE lock on NAME, for transaction TRANSATION
+        if (!conflict) {
+            if (sameTransactionLong != null) {
+                throw new DuplicateLockRequestException("a lock on NAME is held by TRANSACTION");
+            } else {
+                System.out.println(1); //debug
+                List<Lock> list = new ArrayList<>();
+                list.add(lockOnName);
+                this.transactionLocks.put(transaction.getTransNum(), list);
+            }
+        } else {
+            System.out.println(2); //debug
+            //Add to queue
+            LockRequest newRequest = new LockRequest(transaction, lockOnName);
+            this.waitingQueue.add(newRequest);
+        }
+
+        /*if (this.resourceLocks.containsKey(name)) {
+            this.resourceLocks.get(name).add(new Pair<>(transaction.getTransNum(), lockOnName));
+        } else {
+            List<Pair<Long, Lock>> resourcelist = new ArrayList<>();
+            resourcelist.add(new Pair<>(transaction.getTransNum(), lockOnName));
+            this.resourceLocks.put(name, resourcelist);
+        }*/
     }
 
     /**
@@ -104,6 +163,7 @@ public class LockManager {
     public void release(BaseTransaction transaction, ResourceName name)
     throws NoLockHeldException {
         throw new UnsupportedOperationException("TODO(hw5): implement");
+        //if (this.transactionLocks)
     }
 
     /**
@@ -133,7 +193,20 @@ public class LockManager {
      * held.
      */
     public LockType getLockType(BaseTransaction transaction, ResourceName name) {
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        if (this.transactionLocks.containsKey(transaction.getTransNum())) {
+            System.out.println("Contains key"); //debug
+            List<Lock> locks = this.transactionLocks.get(transaction.getTransNum());
+            for (int i = 0; i < locks.size(); i++) {
+                if (name == locks.get(i).name) {
+                    System.out.println(locks.get(i).lockType.toString()); //debug
+                    return locks.get(i).lockType;
+                }
+            }
+        } else {
+            return null;
+        }
+        return null;
     }
 
     /**
@@ -142,7 +215,21 @@ public class LockManager {
      * at the original time.
      */
     public List<Pair<Long, LockType>> getLocks(ResourceName name) {
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        List<Pair<Long, LockType>> list = new ArrayList<>();
+//        for (int i = 0; i < this.resourceLocks.get(name).size(); i++) {
+//            list.add(new Pair<>(this.resourceLocks.get(name).get(i).getFirst(), this.resourceLocks.get(name).get(i).getSecond().lockType));
+//        }
+        for (Map.Entry<Long, List<Lock>> entry : this.transactionLocks.entrySet()) {
+            Long key = entry.getKey();
+            List<Lock> value = entry.getValue();
+            for (int i = 0; i < value.size(); i++) {
+                if (name == value.get(i).name) {
+                    list.add(new Pair<>(key, value.get(i).lockType));
+                }
+            }
+        }
+        return list;
     }
 
     /**
