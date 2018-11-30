@@ -79,10 +79,103 @@ public class LockManager {
     throws DuplicateLockRequestException, NoLockHeldException {
         //throw new UnsupportedOperationException("TODO(hw5): implement");
         //TODO needs more work on acuquiring
-        acquire(transaction, name, lockType);
-        System.out.println(getLocks(transaction)); //debug
+        //acquire
+        Lock lockOnName = new Lock(name, lockType);
+        boolean sameTransID = false;
+        boolean blocked = false;
+        for (Map.Entry<Long, List<Lock>> entry : this.transactionLocks.entrySet()) {
+            Long key = entry.getKey();
+            List<Lock> value = entry.getValue();
+            //Throws exception of a lock on NAME is held by TRANSACTION
+            if (transaction.getTransNum() == key) {
+                sameTransID = true;
+                for (int i = 0; i < value.size(); i++) {
+                    if (value.get(i).name.equals(name)) {
+                        if (!releaseLocks.contains(name)) {
+                            throw new DuplicateLockRequestException("a lock on " + name
+                                    + " is held by " + transaction);
+                        }
+                    }
+                }
+                //Blocks the transaction and places it in queue if the requested
+                //lock is not compatible with another transaction's lock on the
+                //resource
+            } else {
+                for (int i = 0; i < value.size(); i++) {
+                    if (value.get(i).name.equals(name)) {
+                        if (!LockType.compatible(value.get(i).lockType, lockType)) {
+                            transaction.block();
+                            System.out.println(transaction + " is blocked"); //debug
+                            LockRequest newRequest = new LockRequest(transaction, lockOnName);
+                            this.waitingQueue.add(newRequest);
+                            blocked = true;
+                            System.out.println("a lock on " + name + " held by " + transaction +
+                                    " is added to the queue"); //debug
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!blocked) {
+            if (sameTransID) {
+                this.transactionLocks.get(transaction.getTransNum()).add(lockOnName);
+                System.out.println("A lock on " + name + " held by " + transaction +
+                        " is added to transactionLocks"); //debug
+            } else {
+                List<Lock> list = new ArrayList<>();
+                list.add(lockOnName);
+                this.transactionLocks.put(transaction.getTransNum(), list);
+                System.out.println("A lock on " + name + " held by " + transaction +
+                        " is added to transactionLocks"); //debug
+            }
+        }
+
+        //Releasing all locks in releaseLocks
         for (int i = 0; i < releaseLocks.size(); i++) {
-            release(transaction, releaseLocks.get(i));
+            if (this.transactionLocks.containsKey(transaction.getTransNum()) && !transaction.getBlocked()) {
+                boolean lockOnNameHeld = false;
+                List<Lock> list = this.transactionLocks.get(transaction.getTransNum());
+                for (int j = 0; j < list.size(); j++) {
+                    if (list.get(j).name.equals(releaseLocks.get(i))) {
+                        lockOnNameHeld = true;
+                        this.transactionLocks.get(transaction.getTransNum()).remove(j);
+                        System.out.println("A lock on " + name + " held by " + transaction + " is removed"); //debug
+                    }
+                }
+                if (!lockOnNameHeld) {
+                    throw new NoLockHeldException("no lock on " + name + " is held by " + transaction);
+                }
+            }
+        }
+
+        //Unblock and unqueue
+        Iterator iterator = this.waitingQueue.iterator();
+        while (iterator.hasNext()) {
+            LockRequest lockRequest = (LockRequest) iterator.next();
+            //check if queue can be unblock and unqueue
+            boolean notCompatible = false;
+            for (Map.Entry<Long, List<Lock>> entry : this.transactionLocks.entrySet()) {
+                Long key = entry.getKey();
+                List<Lock> value = entry.getValue();
+                for (int i = 0; i < value.size(); i++) {
+                    if (value.get(i).name.equals(lockRequest.lock.name)) {
+                        if (!LockType.compatible(value.get(i).lockType, lockRequest.lock.lockType)) {
+                            notCompatible = true;
+                        }
+                    }
+                }
+            }
+
+            if (!notCompatible) {
+                lockRequest.transaction.unblock();
+                System.out.println(lockRequest.transaction + " is unblocked"); //debug
+                System.out.println("Unqueueing " + lockRequest.transaction + " with " +
+                        lockRequest.lock.name + " in progress ..."); //debug
+                acquire(lockRequest.transaction, lockRequest.lock.name, lockRequest.lock.lockType);
+                System.out.println("Finish unqueue " + lockRequest.transaction + " with " +
+                        lockRequest.lock.name); //debug
+            }
         }
     }
 
@@ -121,9 +214,12 @@ public class LockManager {
                     if (value.get(i).name.equals(name)) {
                         if (!LockType.compatible(value.get(i).lockType, lockType)) {
                             transaction.block();
+                            System.out.println(transaction + " is blocked"); //debug
                             LockRequest newRequest = new LockRequest(transaction, lockOnName);
                             this.waitingQueue.add(newRequest);
                             blocked = true;
+                            System.out.println("a lock on " + name + " held by " + transaction +
+                                    " is added to the queue"); //debug
                         }
                     }
                 }
@@ -155,15 +251,15 @@ public class LockManager {
     public void release(BaseTransaction transaction, ResourceName name)
     throws NoLockHeldException {
         //throw new UnsupportedOperationException("TODO(hw5): implement");
-        if (this.transactionLocks.containsKey(transaction.getTransNum())) {
+        if (this.transactionLocks.containsKey(transaction.getTransNum()) && !transaction.getBlocked()) {
             boolean lockOnName = false;
             List<Lock> list = this.transactionLocks.get(transaction.getTransNum());
             for (int i = 0; i < list.size(); i++) {
-                System.out.println(list.get(i).name); //debug
+                //System.out.println(list.get(i).name); //debug
                 if (list.get(i).name.equals(name)) {
-                    System.out.println("A lock on " + name + "held by " + transaction + "exists"); //debug
                     lockOnName = true;
                     this.transactionLocks.get(transaction.getTransNum()).remove(i);
+                    System.out.println("A lock on " + name + " held by " + transaction + " is removed"); //debug
                 }
             }
             if (!lockOnName) {
@@ -174,8 +270,29 @@ public class LockManager {
         Iterator iterator = this.waitingQueue.iterator();
         while (iterator.hasNext()) {
             LockRequest lockRequest = (LockRequest) iterator.next();
-            lockRequest.transaction.unblock();
-            acquire(lockRequest.transaction, lockRequest.lock.name, lockRequest.lock.lockType);
+            //check if queue can be unblock and unqueue
+            boolean notCompatible = false;
+            for (Map.Entry<Long, List<Lock>> entry : this.transactionLocks.entrySet()) {
+                Long key = entry.getKey();
+                List<Lock> value = entry.getValue();
+                for (int i = 0; i < value.size(); i++) {
+                    if (value.get(i).name.equals(lockRequest.lock.name)) {
+                        if (!LockType.compatible(value.get(i).lockType, lockRequest.lock.lockType)) {
+                            notCompatible = true;
+                        }
+                    }
+                }
+            }
+
+            if (!notCompatible) {
+                lockRequest.transaction.unblock();
+                System.out.println(lockRequest.transaction + " is unblocked"); //debug
+                System.out.println("Unqueueing " + lockRequest.transaction + " with " +
+                        lockRequest.lock.name + " in progress ..."); //debug
+                acquire(lockRequest.transaction, lockRequest.lock.name, lockRequest.lock.lockType);
+                System.out.println("Finish unqueue " + lockRequest.transaction + " with " +
+                        lockRequest.lock.name); //debug
+            }
         }
     }
 
