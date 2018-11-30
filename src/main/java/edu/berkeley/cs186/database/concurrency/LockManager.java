@@ -107,7 +107,7 @@ public class LockManager {
                             transaction.block();
                             System.out.println(transaction + " is blocked"); //debug
                             LockRequest newRequest = new LockRequest(transaction, lockOnName);
-                            this.waitingQueue.add(newRequest);
+                            this.waitingQueue.addLast(newRequest);
                             blocked = true;
                             System.out.println("a lock on " + name + " held by " + transaction +
                                     " is added to the queue"); //debug
@@ -173,6 +173,7 @@ public class LockManager {
                 System.out.println("Unqueueing " + lockRequest.transaction + " with " +
                         lockRequest.lock.name + " in progress ..."); //debug
                 acquire(lockRequest.transaction, lockRequest.lock.name, lockRequest.lock.lockType);
+                iterator.remove();
                 System.out.println("Finish unqueue " + lockRequest.transaction + " with " +
                         lockRequest.lock.name); //debug
             }
@@ -216,7 +217,7 @@ public class LockManager {
                             transaction.block();
                             System.out.println(transaction + " is blocked"); //debug
                             LockRequest newRequest = new LockRequest(transaction, lockOnName);
-                            this.waitingQueue.add(newRequest);
+                            this.waitingQueue.addLast(newRequest);
                             blocked = true;
                             System.out.println("a lock on " + name + " held by " + transaction +
                                     " is added to the queue"); //debug
@@ -290,6 +291,7 @@ public class LockManager {
                 System.out.println("Unqueueing " + lockRequest.transaction + " with " +
                         lockRequest.lock.name + " in progress ..."); //debug
                 acquire(lockRequest.transaction, lockRequest.lock.name, lockRequest.lock.lockType);
+                iterator.remove();
                 System.out.println("Finish unqueue " + lockRequest.transaction + " with " +
                         lockRequest.lock.name); //debug
             }
@@ -316,7 +318,68 @@ public class LockManager {
                         LockType newLockType)
     throws DuplicateLockRequestException, NoLockHeldException, InvalidLockException {
         //throw new UnsupportedOperationException("TODO(hw5): implement");
-        if (this.transactionLocks.containsKey(transaction.getTransNum())) {
+        boolean compatible = true;
+        boolean hasTransaction = false;
+        for (Map.Entry<Long, List<Lock>> entry : this.transactionLocks.entrySet()) {
+            Long key = entry.getKey();
+            List<Lock> value = entry.getValue();
+            if (key == transaction.getTransNum()) {
+                hasTransaction = true;
+                boolean hasLockOnName = false;
+                for (int i = 0; i < value.size(); i++) {
+                    if (value.get(i).name.equals(name)) {
+                        hasLockOnName = true;
+                        //Check InvalidLockException
+                        if (!LockType.substitutable(newLockType, value.get(i).lockType)) {
+                            throw new InvalidLockException("the requested lock type is not a promotion");
+                        }
+                        //Check DuplicateLockRequestException
+                        if (value.get(i).lockType.equals(newLockType)) {
+                            throw new DuplicateLockRequestException(transaction + " already has a " +
+                                    newLockType + " on " + name);
+                        }
+                    }
+                }
+                //Check NoLockHeldException
+                if (!hasLockOnName) {
+                    throw new NoLockHeldException(transaction + " has no lock on " + name);
+                }
+            } else {
+                for (int i = 0; i < value.size(); i++) {
+                    if (value.get(i).name.equals(name)) {
+                        if (!LockType.compatible(value.get(i).lockType, newLockType)) {
+                            compatible = false;
+                            transaction.block();
+                            System.out.println(transaction + " is blocked"); //debug
+                            Lock lockOnName = new Lock(name, newLockType);
+                            LockRequest newRequest = new LockRequest(transaction, lockOnName);
+                            this.waitingQueue.addFirst(newRequest);
+                            System.out.println(transaction + " with " + newLockType + " is added to the " +
+                                    "front of queue"); //debug
+                        }
+                    }
+                }
+            }
+        }
+        //Check NoLockHeldException
+        if (!hasTransaction) {
+            throw new NoLockHeldException(transaction + "does not exists");
+        }
+
+        if (compatible) {
+            List<Lock> list = this.transactionLocks.get(transaction.getTransNum());
+            for (int i = 0; i < list.size(); i++) {
+                if (list.get(i).name.equals(name)) {
+                    LockType oldLockType = list.get(i).lockType;
+                    this.transactionLocks.get(transaction.getTransNum()).get(i).lockType = newLockType;
+                    System.out.println("promote " + transaction + " lock of " + name + " from " +
+                            oldLockType + " to " + newLockType);
+                }
+            }
+        }
+
+
+        /*if (this.transactionLocks.containsKey(transaction.getTransNum())) {
             List<Lock> list = this.transactionLocks.get(transaction.getTransNum());
             boolean contains = false;
             for (int i = 0; i < list.size(); i++) {
@@ -335,7 +398,7 @@ public class LockManager {
             if (!contains) {
                 throw new NoLockHeldException("TRANSACTION has no lock on NAME");
             }
-        }
+        }*/
     }
 
     /**
@@ -345,11 +408,11 @@ public class LockManager {
     public LockType getLockType(BaseTransaction transaction, ResourceName name) {
         //throw new UnsupportedOperationException("TODO(hw5): implement");
         if (this.transactionLocks.containsKey(transaction.getTransNum())) {
-            System.out.println("Contains key"); //debug
+            //System.out.println("Contains key"); //debug
             List<Lock> locks = this.transactionLocks.get(transaction.getTransNum());
             for (int i = 0; i < locks.size(); i++) {
                 if (name == locks.get(i).name) {
-                    System.out.println(locks.get(i).lockType.toString()); //debug
+                    //System.out.println(locks.get(i).lockType.toString()); //debug
                     return locks.get(i).lockType;
                 }
             }
