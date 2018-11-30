@@ -99,54 +99,50 @@ public class LockManager {
                         LockType lockType) throws DuplicateLockRequestException {
         //throw new UnsupportedOperationException("TODO(hw5): implement");
         Lock lockOnName = new Lock(name, lockType);
-        boolean conflict = false;
-        Long sameTransactionLong = null;
-        //check if the requested lock is not compatible with another transaction's lock on the resource
+        boolean sameTransID = false;
+        boolean blocked = false;
         for (Map.Entry<Long, List<Lock>> entry : this.transactionLocks.entrySet()) {
             Long key = entry.getKey();
             List<Lock> value = entry.getValue();
+            //Throws exception of a lock on NAME is held by TRANSACTION
             if (transaction.getTransNum() == key) {
+                sameTransID = true;
                 for (int i = 0; i < value.size(); i++) {
-                    if (value.get(i).name == name) {
-                        throw new DuplicateLockRequestException("a lock on NAME is held by TRANSACTION");
+                    if (value.get(i).name.equals(name)) {
+                        throw new DuplicateLockRequestException("a lock on " + name
+                                + " is held by " + transaction);
                     }
                 }
+                //Blocks the transaction and places it in queue if the requested
+                //lock is not compatible with another transaction's lock on the
+                //resource
             } else {
                 for (int i = 0; i < value.size(); i++) {
-                    if (name == value.get(i).name) {
-                        if (!LockType.compatible(lockType, value.get(i).lockType)) {
-                            conflict = true;
+                    if (value.get(i).name.equals(name)) {
+                        if (!LockType.compatible(value.get(i).lockType, lockType)) {
+                            transaction.block();
+                            LockRequest newRequest = new LockRequest(transaction, lockOnName);
+                            this.waitingQueue.add(newRequest);
+                            blocked = true;
                         }
                     }
                 }
             }
         }
 
-        //Acquire a LOCKTYPE lock on NAME, for transaction TRANSATION
-        if (!conflict) {
-            if (sameTransactionLong != null) {
-                throw new DuplicateLockRequestException("a lock on NAME is held by TRANSACTION");
+        if (!blocked) {
+            if (sameTransID) {
+                this.transactionLocks.get(transaction.getTransNum()).add(lockOnName);
+                System.out.println("A lock on " + name + " held by " + transaction +
+                        " is added to transactionLocks"); //debug
             } else {
-                System.out.println(1); //debug
                 List<Lock> list = new ArrayList<>();
                 list.add(lockOnName);
                 this.transactionLocks.put(transaction.getTransNum(), list);
+                System.out.println("A lock on " + name + " held by " + transaction +
+                        " is added to transactionLocks"); //debug
             }
-        } else {
-            System.out.println(2); //debug
-            //Add to queue
-            transaction.block();
-            LockRequest newRequest = new LockRequest(transaction, lockOnName);
-            this.waitingQueue.add(newRequest);
         }
-
-        /*if (this.resourceLocks.containsKey(name)) {
-            this.resourceLocks.get(name).add(new Pair<>(transaction.getTransNum(), lockOnName));
-        } else {
-            List<Pair<Long, Lock>> resourcelist = new ArrayList<>();
-            resourcelist.add(new Pair<>(transaction.getTransNum(), lockOnName));
-            this.resourceLocks.put(name, resourcelist);
-        }*/
     }
 
     /**
@@ -163,8 +159,9 @@ public class LockManager {
             boolean lockOnName = false;
             List<Lock> list = this.transactionLocks.get(transaction.getTransNum());
             for (int i = 0; i < list.size(); i++) {
-                if (list.get(i).name == name) {
-                    System.out.println("debug"); //debug
+                System.out.println(list.get(i).name); //debug
+                if (list.get(i).name.equals(name)) {
+                    System.out.println("A lock on " + name + "held by " + transaction + "exists"); //debug
                     lockOnName = true;
                     this.transactionLocks.get(transaction.getTransNum()).remove(i);
                 }
