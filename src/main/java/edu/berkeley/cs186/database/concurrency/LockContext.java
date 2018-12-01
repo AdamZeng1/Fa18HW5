@@ -76,7 +76,47 @@ public class LockContext {
      */
     public void acquire(BaseTransaction transaction, LockType lockType)
     throws InvalidLockException, DuplicateLockRequestException {
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        //check if context is readonly
+        if (this.readonly) {
+            throw new UnsupportedOperationException("context is readonly");
+        }
+
+        //check if the context is the parent
+        boolean root = false;
+        if (this.parent == null) {
+            root = true;
+        }
+        //check if the request is invalid
+        if (!root) {
+            //if (!LockType.compatible(lockType, this.getGlobalLockType(transaction))) {
+            if (getScore(lockType) > getScore(this.getGlobalLockType(transaction))) {
+                throw new InvalidLockException("the request is invalid");
+            }
+        }
+
+        //Check duplicate lock request exception
+        try {
+            //acquire
+            this.lockman.acquire(transaction, name, lockType);
+            //update numChildLocks
+            LockContext parentIter = this.parent;
+            while (parentIter != null) {
+                if (parentIter.numChildLocks.containsKey(transaction.getTransNum())) {
+                    parentIter.numChildLocks.put(transaction.getTransNum(),
+                            parentIter.numChildLocks.get(transaction.getTransNum()) + 1);
+                    System.out.println("plus 1 on " + transaction + " in " + parentIter.toString());
+                } else {
+                    parentIter.numChildLocks.put(transaction.getTransNum(), 1);
+                    System.out.println("create 1 on " + transaction + " in " + parentIter.toString());
+                }
+
+                parentIter = parentIter.parent;
+            }
+        } catch (DuplicateLockRequestException e) {
+            throw new DuplicateLockRequestException("a lock is already held by " + transaction);
+        }
+
     }
 
     /**
@@ -93,7 +133,46 @@ public class LockContext {
      */
     public void release(BaseTransaction transaction)
     throws NoLockHeldException, InvalidLockException {
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        if (this.readonly) {
+            throw new UnsupportedOperationException("context is readonly");
+        }
+
+        //check if the context is the parent
+        boolean root = false;
+        if (this.parent == null) {
+            root = true;
+        }
+
+        if (this.numChildLocks.get(transaction.getTransNum()) != null) {
+            if (this.numChildLocks.get(transaction.getTransNum()) > 0) {
+                throw new InvalidLockException("the request is invalid");
+            }
+        }
+
+        //Check duplicate lock request exception
+        try {
+            //release
+            this.lockman.release(transaction, name);
+            //update numChildLocks
+            LockContext parentIter = this.parent;
+            while (parentIter != null) {
+                if (parentIter.numChildLocks.get(transaction.getTransNum()) > 1) {
+                    parentIter.numChildLocks.put(transaction.getTransNum(),
+                            parentIter.numChildLocks.get(transaction.getTransNum()) - 1);
+                    System.out.println("minus 1 on " + transaction + " in " + parentIter.toString());
+                } else {
+                    parentIter.numChildLocks.remove(transaction.getTransNum());
+                    System.out.println("delete on " + transaction + " in " + parentIter.toString());
+                }
+
+                parentIter = parentIter.parent;
+            }
+        } catch (NoLockHeldException e) {
+            throw new NoLockHeldException("no lock on " + name + " is held by " + transaction);
+        }
+
+
     }
 
     /**
@@ -147,7 +226,18 @@ public class LockContext {
         if (transaction == null) {
             return null;
         }
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        LockContext iter = this;
+        LockType lockType = null;
+        while (iter != null) {
+            lockType = iter.getLocalLockType(transaction);
+            if (lockType != null) {
+                return lockType;
+            } else {
+                iter = iter.parent;
+            }
+        }
+        return lockType;
     }
 
     /**
@@ -157,7 +247,14 @@ public class LockContext {
         if (transaction == null) {
             return null;
         }
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        List<Pair<ResourceName, LockType>> list = this.lockman.getLocks(transaction);
+        for (int i = 0; i < list.size(); i++) {
+            if (name.equals(list.get(i).getFirst())) {
+                return list.get(i).getSecond();
+            }
+        }
+        return null;
     }
 
     /**
@@ -217,6 +314,24 @@ public class LockContext {
     @Override
     public String toString() {
         return "LockContext(" + name.toString() + ")";
+    }
+
+    private int getScore(LockType lockType) {
+        int score = 0;
+        switch (lockType) {
+            case S: score = 0;
+            break;
+            case IS: score = 1;
+            break;
+            case X: score = 2;
+            break;
+            case IX: score = 3;
+            break;
+            case SIX: score = 4;
+            break;
+            default: score = 0;
+        }
+        return score;
     }
 }
 
