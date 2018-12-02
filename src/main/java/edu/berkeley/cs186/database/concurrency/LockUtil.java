@@ -17,7 +17,31 @@ public class LockUtil {
      */
     public static void requestLocks(BaseTransaction transaction, LockContext lockContext,
                                     LockType lockType) {
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        if (transaction != null) {
+            //check if lockContext is root
+            boolean root = false;
+            if (lockContext.parentContext() == null) {
+                root = true;
+            }
+
+            //acquire a lock with lockType
+            //lockContext.acquire(transaction, lockType);
+            if (!root) {
+                LockContext parentIter = lockContext.parentContext();
+                while (parentIter != null) {
+                    //if parent has no lock
+                    if (parentIter.getLocalLockType(transaction) == null) {
+                        parentIter.acquire(transaction, LockType.parentLock(lockType));
+                    }
+                    //System.out.println("parent lock type is: " + parentIter.getLocalLockType(transaction)); //debug
+                    //System.out.println("lock type score is: " + lockContext.getScore(lockType));
+                    //System.out.println("parent lock type score: " + lockContext.getScore(parentIter.getLocalLockType(transaction))); //debug
+
+                    parentIter = parentIter.parentContext();
+                }
+            }
+        }
     }
 
     // TODO(hw5): add helper methods as you see fit

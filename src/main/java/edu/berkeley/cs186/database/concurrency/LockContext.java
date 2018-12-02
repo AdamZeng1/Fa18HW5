@@ -361,7 +361,7 @@ public class LockContext {
         return "LockContext(" + name.toString() + ")";
     }
 
-    private int getScore(LockType lockType) {
+    public int getScore(LockType lockType) {
         int score;
         if (lockType == null) {
             score = 0;
