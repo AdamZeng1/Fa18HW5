@@ -89,8 +89,7 @@ public class LockContext {
         }
         //check if the request is invalid
         if (!root) {
-            //if (!LockType.compatible(lockType, this.getGlobalLockType(transaction))) {
-            if (getScore(lockType) > getScore(this.getGlobalLockType(transaction))) {
+            if (getScore(LockType.parentLock(lockType)) > getScore(this.getGlobalLockType(transaction))) {
                 throw new InvalidLockException("the request is invalid");
             }
         }
@@ -138,11 +137,6 @@ public class LockContext {
             throw new UnsupportedOperationException("context is readonly");
         }
 
-        //check if the context is the parent
-        boolean root = false;
-        if (this.parent == null) {
-            root = true;
-        }
 
         if (this.numChildLocks.get(transaction.getTransNum()) != null) {
             if (this.numChildLocks.get(transaction.getTransNum()) > 0) {
@@ -193,7 +187,31 @@ public class LockContext {
      */
     public void promote(BaseTransaction transaction, LockType newLockType)
     throws DuplicateLockRequestException, NoLockHeldException, InvalidLockException {
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        if (this.readonly) {
+            throw new UnsupportedOperationException("context is readonly");
+        }
+
+        //check if the context is the parent
+        boolean root = false;
+        if (this.parent == null) {
+            root = true;
+        }
+
+        //check promotion caused invalid state
+        if (!root) {
+            if (getScore(newLockType) > getScore(this.parent.getGlobalLockType(transaction))) {
+                throw new InvalidLockException("the lock manager enters an invalid state " +
+                        this.parent.getGlobalLockType(transaction) + "(parent) " +
+                        newLockType + "(child)");
+            }
+        }
+
+        try {
+            this.lockman.promote(transaction, name, newLockType);
+        } catch (InvalidLockException e) {
+            throw new InvalidLockException("the requested lock type is not a promotion");
+        }
     }
 
     /**
@@ -214,7 +232,34 @@ public class LockContext {
      * @throws UnsupportedOperationException if context is readonly
      */
     public void escalate(BaseTransaction transaction) throws NoLockHeldException {
-        throw new UnsupportedOperationException("TODO(hw5): implement");
+        //throw new UnsupportedOperationException("TODO(hw5): implement");
+        if (this.readonly) {
+            throw new UnsupportedOperationException("context is readonly");
+        }
+
+        if (this.numChildLocks.get(transaction.getTransNum()) == null) {
+            throw new NoLockHeldException(transaction + " has no lock on children");
+        }
+
+        LockType leastPermissive = null;
+        for (Map.Entry<Object, LockContext> entry: this.children.entrySet()) {
+            Object key = entry.getKey();
+            LockContext value = entry.getValue();
+            LockContext childContext = this.childContext(key);
+            if (childContext.readonly) {
+                throw new UnsupportedOperationException(childContext.toString() + " is readonly");
+            }
+            if (childContext.getLocalLockType(transaction) != null) {
+                if (getScore(childContext.getLocalLockType(transaction)) > getScore(leastPermissive)) {
+                    leastPermissive = childContext.getLocalLockType(transaction);
+                }
+                childContext.release(transaction);
+            }
+        }
+        System.out.println("least permissive is " + leastPermissive);
+        if (getScore(leastPermissive) > getScore(this.getLocalLockType(transaction))) {
+            this.promote(transaction, leastPermissive);
+        }
     }
 
     /**
@@ -317,19 +362,30 @@ public class LockContext {
     }
 
     private int getScore(LockType lockType) {
-        int score = 0;
-        switch (lockType) {
-            case S: score = 0;
-            break;
-            case IS: score = 1;
-            break;
-            case X: score = 2;
-            break;
-            case IX: score = 3;
-            break;
-            case SIX: score = 4;
-            break;
-            default: score = 0;
+        int score;
+        if (lockType == null) {
+            score = 0;
+        } else {
+            switch (lockType) {
+                case IS:
+                    score = 1;
+                    break;
+                case SIX:
+                    score = 2;
+                    break;
+                case IX:
+                    score = 3;
+                    break;
+                case S:
+                    score = 4;
+                    break;
+                case X:
+                    score = 5;
+                    break;
+                default:
+                    score = 0;
+                    break;
+            }
         }
         return score;
     }
