@@ -2,6 +2,8 @@ package edu.berkeley.cs186.database.concurrency;
 
 import edu.berkeley.cs186.database.BaseTransaction;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.locks.Lock;
 
 public class LockUtil {
@@ -26,19 +28,41 @@ public class LockUtil {
             }
 
             //acquire a lock with lockType
-            //lockContext.acquire(transaction, lockType);
             if (!root) {
                 LockContext parentIter = lockContext.parentContext();
+                List<LockContext> lockContextList = new ArrayList<>();
+                lockContextList.add(lockContext);
                 while (parentIter != null) {
-                    //if parent has no lock
-                    if (parentIter.getLocalLockType(transaction) == null) {
-                        parentIter.acquire(transaction, LockType.parentLock(lockType));
-                    }
-                    //System.out.println("parent lock type is: " + parentIter.getLocalLockType(transaction)); //debug
-                    //System.out.println("lock type score is: " + lockContext.getScore(lockType));
-                    //System.out.println("parent lock type score: " + lockContext.getScore(parentIter.getLocalLockType(transaction))); //debug
-
+                    lockContextList.add(parentIter);
                     parentIter = parentIter.parentContext();
+                }
+                System.out.print(lockContextList+"\n");
+                if (lockContext.numChildLocks.get(transaction.getTransNum()) == null) {
+                    for (int i = lockContextList.size() - 1; i >= 0; i--) {
+                        //simple acquire and release
+                        //acquire
+                        if (lockContextList.get(i).getLocalLockType(transaction) == null) {
+                            //parents
+                            if (!lockContextList.get(i).equals(lockContext)) {
+                                lockContextList.get(i).acquire(transaction, LockType.parentLock(lockType));
+                            } else {
+                                //this
+                                lockContextList.get(i).acquire(transaction, lockType);
+                            }
+                        } else {
+                            //promote
+                            //parent
+                            if (!lockContextList.get(i).equals(lockContext)) {
+                                lockContextList.get(i).promote(transaction, LockType.parentLock(lockType));
+                            } else {
+                                //this
+                                lockContextList.get(i).promote(transaction, lockType);
+                            }
+                        }
+                    }
+                } else {
+                    System.out.print("escalate\n");
+                    lockContext.escalate(transaction);
                 }
             }
         }

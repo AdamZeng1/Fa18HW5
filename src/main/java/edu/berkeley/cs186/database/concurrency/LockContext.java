@@ -200,7 +200,7 @@ public class LockContext {
 
         //check promotion caused invalid state
         if (!root) {
-            if (getScore(newLockType) > getScore(this.parent.getGlobalLockType(transaction))) {
+            if (getScore(newLockType) < getScore(this.parent.getGlobalLockType(transaction))) {
                 throw new InvalidLockException("the lock manager enters an invalid state " +
                         this.parent.getGlobalLockType(transaction) + "(parent) " +
                         newLockType + "(child)");
@@ -242,6 +242,7 @@ public class LockContext {
         }
 
         LockType leastPermissive = null;
+        List <ResourceName> releaseLock = new ArrayList<>();
         for (Map.Entry<Object, LockContext> entry: this.children.entrySet()) {
             Object key = entry.getKey();
             LockContext value = entry.getValue();
@@ -253,12 +254,32 @@ public class LockContext {
                 if (getScore(childContext.getLocalLockType(transaction)) > getScore(leastPermissive)) {
                     leastPermissive = childContext.getLocalLockType(transaction);
                 }
-                childContext.release(transaction);
+                //childContext.release(transaction);
+                releaseLock.add(childContext.getResourceName());
+
+                //update numChildLocks
+                LockContext parentIter = childContext.parent;
+                while (parentIter != null) {
+                    if (parentIter.numChildLocks.get(transaction.getTransNum()) > 1) {
+                        parentIter.numChildLocks.put(transaction.getTransNum(),
+                                parentIter.numChildLocks.get(transaction.getTransNum()) - 1);
+                        System.out.println("minus 1 on " + transaction + " in " + parentIter.toString());
+                    } else {
+                        parentIter.numChildLocks.remove(transaction.getTransNum());
+                        System.out.println("delete on " + transaction + " in " + parentIter.toString());
+                    }
+
+                    parentIter = parentIter.parent;
+                }
             }
         }
         System.out.println("least permissive is " + leastPermissive);
         if (getScore(leastPermissive) > getScore(this.getLocalLockType(transaction))) {
-            this.promote(transaction, leastPermissive);
+            //this.promote(transaction, leastPermissive);
+            //this.release(transaction);
+            //this.acquire(transaction, leastPermissive);
+            releaseLock.add(this.getResourceName());
+            this.lockman.acquireAndRelease(transaction, this.getResourceName(), leastPermissive, releaseLock);
         }
     }
 
