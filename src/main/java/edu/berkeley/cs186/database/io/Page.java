@@ -162,12 +162,14 @@ public class Page {
 
         public Buffer get(byte[] dst, int offset, int length) {
             // TODO(hw5): locking code here
+            LockUtil.requestLocks(transaction, lockContext, LockType.S);
             Page.this.readBytes(this.offset + offset, length, dst);
             return this;
         }
 
         public Buffer put(byte[] src, int offset, int length) {
             // TODO(hw5): locking code here
+            LockUtil.requestLocks(transaction, lockContext, LockType.X);
             Page.this.writeBytes(this.offset + offset, length, src);
             return this;
         }

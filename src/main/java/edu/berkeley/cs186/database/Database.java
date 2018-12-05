@@ -177,6 +177,7 @@ public class Database {
             assert(this.active);
 
             // TODO(hw5): release all locks
+            
 
             deleteAllTempTables();
             this.active = false;
