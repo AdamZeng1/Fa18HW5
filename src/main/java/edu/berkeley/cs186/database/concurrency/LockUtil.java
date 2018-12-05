@@ -27,7 +27,6 @@ public class LockUtil {
                 root = true;
             }
 
-            //acquire a lock with lockType
             if (!root) {
                 LockContext parentIter = lockContext.parentContext();
                 List<LockContext> lockContextList = new ArrayList<>();
@@ -53,7 +52,10 @@ public class LockUtil {
                             //promote
                             //parent
                             if (!lockContextList.get(i).equals(lockContext)) {
-                                lockContextList.get(i).promote(transaction, LockType.parentLock(lockType));
+                                if (lockContext.getScore(LockType.parentLock(lockType)) >
+                                        lockContext.getScore(LockType.parentLock(lockContextList.get(i).getLocalLockType(transaction)))) {
+                                    lockContextList.get(i).promote(transaction, LockType.parentLock(lockType));
+                                }
                             } else {
                                 //this
                                 lockContextList.get(i).promote(transaction, lockType);
@@ -64,6 +66,9 @@ public class LockUtil {
                     System.out.print("escalate\n");
                     lockContext.escalate(transaction);
                 }
+            } else {
+                //is root, simply acquire
+                lockContext.acquire(transaction, lockType);
             }
         }
     }
