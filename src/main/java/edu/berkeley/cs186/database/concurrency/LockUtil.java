@@ -35,7 +35,7 @@ public class LockUtil {
                     lockContextList.add(parentIter);
                     parentIter = parentIter.parentContext();
                 }
-                System.out.print(lockContextList+"\n");
+                //System.out.print(lockContextList+"\n"); //debug
                 if (lockContext.numChildLocks.get(transaction.getTransNum()) == null) {
                     for (int i = lockContextList.size() - 1; i >= 0; i--) {
                         //simple acquire and release
@@ -70,7 +70,7 @@ public class LockUtil {
                         }
                     }
                 } else {
-                    System.out.print("escalate\n");
+                    //System.out.print("escalate\n");
                     lockContext.escalate(transaction);
                 }
             } else {

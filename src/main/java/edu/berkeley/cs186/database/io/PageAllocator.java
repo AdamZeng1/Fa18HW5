@@ -115,6 +115,9 @@ public class PageAllocator implements Closeable {
         }
 
         // TODO(hw5): any initialization of lock context (or none)
+        //start
+        lockContext.capacity(2);
+        //end
     }
 
     /**
@@ -174,6 +177,7 @@ public class PageAllocator implements Closeable {
         }
 
         // TODO(hw5): any lock context changes needed
+        lockContext.capacity(this.numPages);
 
         return pageNum;
     }
@@ -276,6 +280,7 @@ public class PageAllocator implements Closeable {
         }
 
         // TODO(hw5): any lock context changes needed
+        lockContext.capacity(this.numPages);
 
         return true;
     }

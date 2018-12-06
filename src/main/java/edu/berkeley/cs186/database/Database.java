@@ -181,15 +181,15 @@ public class Database {
 
             // TODO(hw5): release all locks
             //List<Pair<ResourceName, LockType>> temp = lockManager.getLocks(this);
-            System.out.print("start release all locks\n"); //debug
+            //System.out.print("start release all locks\n"); //debug
             List<Pair<ResourceName, LockType>> lockList = lockManager.getLocks(this);
             for (Pair<ResourceName, LockType> lockPair : lockList) {
                 ResourceName resourceName = lockPair.getFirst();
                 LockType lockType = lockPair.getSecond();
-                System.out.print("tableLockContext: " + this + " resource name: " + resourceName + "\n"); //debug
+                //System.out.print("tableLockContext: " + this + " resource name: " + resourceName + "\n"); //debug
                 lockManager.release(this, resourceName);
             }
-            System.out.print("finish release all locks\n"); //debug
+            //System.out.print("finish release all locks\n"); //debug
 
             deleteAllTempTables();
             this.active = false;
@@ -207,14 +207,13 @@ public class Database {
 
             LockContext tableContext = getTableContext(tableName);
 
+            //start
+            LockUtil.requestLocks(this, tableContext, LockType.X);
+            //end
+
             if (Database.this.tableLookup.containsKey(tableName)) {
                 throw new DatabaseException("Table name already exists");
             }
-
-            //hw5 add locking
-            //start
-            //LockUtil.requestLocks(this, tableContext, LockType.S);
-            //end
 
             Path path = Paths.get(fileDir, tableName + Table.FILENAME_EXTENSION);
             Database.this.tableLookup.put(tableName, new Table(tableName, s, path.toString(), tableContext,
@@ -234,6 +233,10 @@ public class Database {
             // TODO(hw5): add locking
 
             LockContext tableContext = getTableContext(tableName);
+
+            //start
+            LockUtil.requestLocks(this, tableContext, LockType.X);
+            //end
 
             List<String> schemaColNames = s.getFieldNames();
             List<Type> schemaColType = s.getFieldTypes();
@@ -285,6 +288,10 @@ public class Database {
         public boolean deleteTable(String tableName) {
             // TODO(hw5): add locking
 
+            //start
+            LockUtil.requestLocks(this, getTableContext(tableName), LockType.X);
+            //end
+
             if (!Database.this.tableLookup.containsKey(tableName)) {
                 return false;
             }
@@ -308,6 +315,9 @@ public class Database {
          */
         public void deleteAllTables() {
             // TODO(hw5): add locking
+
+            //start
+            LockUtil.requestLocks(this, lockManager.databaseContext(), LockType.X);
 
             List<String> tableNames = new ArrayList<>(tableLookup.keySet());
 
@@ -383,6 +393,9 @@ public class Database {
 
         public Iterator<Record> sortedScan(String tableName, String columnName) throws DatabaseException {
             Table tab = getTable(tableName);
+            //start
+            LockUtil.requestLocks(this, getTableContext(tableName), LockType.S);
+            //end
             try {
                 Pair<String, BPlusTree> index = resolveIndexFromName(tableName, columnName);
 

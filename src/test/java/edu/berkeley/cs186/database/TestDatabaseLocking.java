@@ -252,7 +252,6 @@ public class TestDatabaseLocking {
         List<RecordId> rids = createTable(tableName, 4);
 
         lockManager.startLog();
-        System.out.print("Start logging\n\n\n\n\n"); //debug
 
         BaseTransaction t1 = db.beginTransaction();
         Iterator<Record> r = t1.getRecordIterator(tableName);
@@ -408,7 +407,6 @@ public class TestDatabaseLocking {
         db.close();
         this.lockManager = new LoggingLockManager();
         lockManager.startLog();
-
         this.db = new Database(filename, 5, lockManager);
         assertTrue(lockManager.log.contains("set-capacity database/table-testTable1 2"));
     }
