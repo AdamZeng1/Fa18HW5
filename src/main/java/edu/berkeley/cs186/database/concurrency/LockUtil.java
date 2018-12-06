@@ -35,13 +35,13 @@ public class LockUtil {
                     lockContextList.add(parentIter);
                     parentIter = parentIter.parentContext();
                 }
-                //System.out.print(lockContextList+"\n"); //debug
                 if (lockContext.numChildLocks.get(transaction.getTransNum()) == null) {
                     for (int i = lockContextList.size() - 1; i >= 0; i--) {
                         //simple acquire and release
                         //acquire
                         if (lockContextList.get(i).getLocalLockType(transaction) == null) {
-                            if (lockContext.getScore(lockType) > lockContext.getScore(lockContext.parentContext().getLocalLockType(transaction))) {
+                            if (lockContext.getScore(lockType) >
+                                    lockContext.getScore(lockContext.parentContext().getLocalLockType(transaction))) {
                                 //parents
                                 if (!lockContextList.get(i).equals(lockContext)) {
                                     lockContextList.get(i).acquire(transaction, LockType.parentLock(lockType));
@@ -70,12 +70,13 @@ public class LockUtil {
                         }
                     }
                 } else {
-                    //System.out.print("escalate\n");
                     lockContext.escalate(transaction);
                 }
             } else {
                 //is root, simply acquire
-                lockContext.acquire(transaction, lockType);
+                if (lockContext.getLocalLockType(transaction) == null) {
+                    lockContext.acquire(transaction, lockType);
+                }
             }
         }
     }

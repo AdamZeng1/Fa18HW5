@@ -180,16 +180,12 @@ public class Database {
             assert(this.active);
 
             // TODO(hw5): release all locks
-            //List<Pair<ResourceName, LockType>> temp = lockManager.getLocks(this);
-            //System.out.print("start release all locks\n"); //debug
             List<Pair<ResourceName, LockType>> lockList = lockManager.getLocks(this);
             for (Pair<ResourceName, LockType> lockPair : lockList) {
                 ResourceName resourceName = lockPair.getFirst();
                 LockType lockType = lockPair.getSecond();
-                //System.out.print("tableLockContext: " + this + " resource name: " + resourceName + "\n"); //debug
                 lockManager.release(this, resourceName);
             }
-            //System.out.print("finish release all locks\n"); //debug
 
             deleteAllTempTables();
             this.active = false;

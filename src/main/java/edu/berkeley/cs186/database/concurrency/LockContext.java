@@ -90,8 +90,6 @@ public class LockContext {
         //check if the request is invalid
         if (!root) {
             if (getScore(LockType.parentLock(lockType)) > getScore(this.getGlobalLockType(transaction))) {
-                //System.out.print("lock context debug: \n" + getScore(LockType.parentLock(lockType)) + " "
-                //        + getScore(this.getGlobalLockType(transaction)) + "\n"); //debug
                 throw new InvalidLockException("the request is invalid");
             }
         }
@@ -99,8 +97,6 @@ public class LockContext {
         //Check duplicate lock request exception
         try {
             //acquire
-            //System.out.print("acquiring lock...\n transaction: " + transaction
-            //        + "\nname: " + name + "\nlocktype: " + lockType + "\n"); //debug
             this.lockman.acquire(transaction, name, lockType);
             //update numChildLocks
             LockContext parentIter = this.parent;
@@ -108,10 +104,8 @@ public class LockContext {
                 if (parentIter.numChildLocks.containsKey(transaction.getTransNum())) {
                     parentIter.numChildLocks.put(transaction.getTransNum(),
                             parentIter.numChildLocks.get(transaction.getTransNum()) + 1);
-                    //System.out.println("plus 1 on " + transaction + " in " + parentIter.toString());
                 } else {
                     parentIter.numChildLocks.put(transaction.getTransNum(), 1);
-                    //System.out.println("create 1 on " + transaction + " in " + parentIter.toString());
                 }
 
                 parentIter = parentIter.parent;
@@ -152,17 +146,14 @@ public class LockContext {
         try {
             //release
             this.lockman.release(transaction, name);
-            //System.out.print("releasing locks...\ntransaction: " + transaction + "\nname: " + name); //debug
             //update numChildLocks
             LockContext parentIter = this.parent;
             while (parentIter != null) {
                 if (parentIter.numChildLocks.get(transaction.getTransNum()) > 1) {
                     parentIter.numChildLocks.put(transaction.getTransNum(),
                             parentIter.numChildLocks.get(transaction.getTransNum()) - 1);
-                    //System.out.println("minus 1 on " + transaction + " in " + parentIter.toString());
                 } else {
                     parentIter.numChildLocks.remove(transaction.getTransNum());
-                    //System.out.println("delete on " + transaction + " in " + parentIter.toString());
                 }
 
                 parentIter = parentIter.parent;
@@ -268,21 +259,16 @@ public class LockContext {
                     if (parentIter.numChildLocks.get(transaction.getTransNum()) > 1) {
                         parentIter.numChildLocks.put(transaction.getTransNum(),
                                 parentIter.numChildLocks.get(transaction.getTransNum()) - 1);
-                        //rintln("minus 1 on " + transaction + " in " + parentIter.toString());
                     } else {
                         parentIter.numChildLocks.remove(transaction.getTransNum());
-                        //System.out.println("delete on " + transaction + " in " + parentIter.toString());
                     }
 
                     parentIter = parentIter.parent;
                 }
             }
         }
-        //System.out.println("least permissive is " + leastPermissive);
+
         if (getScore(leastPermissive) > getScore(this.getLocalLockType(transaction))) {
-            //this.promote(transaction, leastPermissive);
-            //this.release(transaction);
-            //this.acquire(transaction, leastPermissive);
             releaseLock.add(this.getResourceName());
             this.lockman.acquireAndRelease(transaction, this.getResourceName(), leastPermissive, releaseLock);
         }
