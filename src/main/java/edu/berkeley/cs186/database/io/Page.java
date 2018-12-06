@@ -162,14 +162,33 @@ public class Page {
 
         public Buffer get(byte[] dst, int offset, int length) {
             // TODO(hw5): locking code here
-            LockUtil.requestLocks(transaction, lockContext, LockType.S);
+            //start
+            //check if transaction holds lock on lockContext
+            //transaction has no lock on lockContext
+            if (lockContext.getLocalLockType(transaction) == null) {
+                LockUtil.requestLocks(this.transaction, lockContext, LockType.S);
+            } else if (LockType.substitutable(lockContext.getLocalLockType(transaction), LockType.S)) {
+                //do nothing
+            }
+            //end
             Page.this.readBytes(this.offset + offset, length, dst);
             return this;
         }
 
         public Buffer put(byte[] src, int offset, int length) {
             // TODO(hw5): locking code here
-            LockUtil.requestLocks(transaction, lockContext, LockType.X);
+            //start
+            //check if transaction holds lock on lockContext
+            //transaction has no lock on lockContext
+            if (lockContext.getLocalLockType(transaction) == null) {
+                LockUtil.requestLocks(this.transaction, lockContext, LockType.X);
+            } else if (!lockContext.getLocalLockType(transaction).equals(LockType.X)) {
+                LockUtil.requestLocks(this.transaction, lockContext, LockType.X);
+            } else {
+                //do nothing
+            }
+            //end
+
             Page.this.writeBytes(this.offset + offset, length, src);
             return this;
         }

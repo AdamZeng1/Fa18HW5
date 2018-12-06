@@ -41,24 +41,31 @@ public class LockUtil {
                         //simple acquire and release
                         //acquire
                         if (lockContextList.get(i).getLocalLockType(transaction) == null) {
-                            //parents
-                            if (!lockContextList.get(i).equals(lockContext)) {
-                                lockContextList.get(i).acquire(transaction, LockType.parentLock(lockType));
-                            } else {
-                                //this
-                                lockContextList.get(i).acquire(transaction, lockType);
+                            if (lockContext.getScore(lockType) > lockContext.getScore(lockContext.parentContext().getLocalLockType(transaction))) {
+                                //parents
+                                if (!lockContextList.get(i).equals(lockContext)) {
+                                    lockContextList.get(i).acquire(transaction, LockType.parentLock(lockType));
+                                } else {
+                                    //this
+                                    lockContextList.get(i).acquire(transaction, lockType);
+                                }
                             }
                         } else {
                             //promote
                             //parent
                             if (!lockContextList.get(i).equals(lockContext)) {
                                 if (lockContext.getScore(LockType.parentLock(lockType)) >
-                                        lockContext.getScore(LockType.parentLock(lockContextList.get(i).getLocalLockType(transaction)))) {
+                                        lockContext.getScore(LockType.parentLock
+                                                (lockContextList.get(i).getLocalLockType(transaction)))) {
                                     lockContextList.get(i).promote(transaction, LockType.parentLock(lockType));
                                 }
                             } else {
                                 //this
-                                lockContextList.get(i).promote(transaction, lockType);
+                                if (lockContext.getScore(LockType.parentLock(lockType)) >
+                                        lockContext.getScore(LockType.parentLock
+                                                (lockContextList.get(i).getLocalLockType(transaction)))) {
+                                    lockContextList.get(i).promote(transaction, lockType);
+                                }
                             }
                         }
                     }

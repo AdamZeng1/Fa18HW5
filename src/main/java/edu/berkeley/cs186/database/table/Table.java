@@ -2,6 +2,7 @@ package edu.berkeley.cs186.database.table;
 
 import java.io.Closeable;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 
 import edu.berkeley.cs186.database.BaseTransaction;
 import edu.berkeley.cs186.database.DatabaseException;
@@ -290,9 +291,19 @@ public class Table implements Closeable {
         }
         Page page = allocator.fetchPage(transaction, freePageNums.first());
 
+        //start
+        if (lockContext != null) {
+            if (lockContext.saturation(transaction) >= 0.2 && lockContext.capacity() >= 10) {
+                lockContext.escalate(transaction);
+            }
+        }
+        //end
+
         // Find the first empty slot in the bitmap.
         // entry number of the first free slot and store it in entryNum; and (2) we
         // count the total number of entries on this page.
+        //start
+        LockUtil.requestLocks(transaction, lockContext.childContext(page.getPageNum()), LockType.X);
         byte[] bitmap = getBitMap(transaction, page);
         int entryNum = 0;
         for (; entryNum < numRecordsPerPage; ++entryNum) {
@@ -324,6 +335,15 @@ public class Table implements Closeable {
                                          RecordId rid) throws DatabaseException {
         validateRecordId(rid);
         Page page = allocator.fetchPage(transaction, rid.getPageNum());
+
+        //start
+        if (lockContext != null) {
+            if (lockContext.saturation(transaction) >= 0.2 && lockContext.capacity() >= 10) {
+                lockContext.escalate(transaction);
+            }
+        }
+        //end
+
         byte[] bitmap = getBitMap(transaction, page);
         if (Bits.getBit(bitmap, rid.getEntryNum()) == Bits.Bit.ZERO) {
             String msg = String.format("Record %s does not exist.", rid);
@@ -345,10 +365,23 @@ public class Table implements Closeable {
                                             RecordId rid) throws DatabaseException {
         // TODO(hw5): modify for smarter locking
         validateRecordId(rid);
-        Record newRecord = schema.verify(values);
-        Record oldRecord = getRecord(transaction, rid);
+
 
         Page page = allocator.fetchPage(transaction, rid.getPageNum());
+
+        //start
+        if (lockContext != null) {
+            if (lockContext.saturation(transaction) >= 0.2 && lockContext.capacity() >= 10) {
+                lockContext.escalate(transaction);
+            }
+        }
+        //end
+
+        //start
+        LockUtil.requestLocks(transaction, lockContext.childContext(page.getPageNum()), LockType.X);
+        //end
+        Record newRecord = schema.verify(values);
+        Record oldRecord = getRecord(transaction, rid);
         insertRecord(transaction, page, rid.getEntryNum(), newRecord);
         this.stats.removeRecord(oldRecord);
         this.stats.addRecord(newRecord);
@@ -365,6 +398,19 @@ public class Table implements Closeable {
         // TODO(hw5): modify for smarter locking
         validateRecordId(rid);
         Page page = allocator.fetchPage(transaction, rid.getPageNum());
+
+        //start
+        if (lockContext != null) {
+            if (lockContext.saturation(transaction) >= 0.2 && lockContext.capacity() >= 10) {
+                lockContext.escalate(transaction);
+            }
+        }
+        //end
+
+        //start
+        LockUtil.requestLocks(transaction, lockContext.childContext(page.getPageNum()), LockType.X);
+        //end
+
         Record record = getRecord(transaction, rid);
         Bits.setBit(page.getBuffer(transaction), rid.getEntryNum(), Bits.Bit.ZERO);
 
@@ -382,6 +428,18 @@ public class Table implements Closeable {
      */
     public synchronized void cleanup(BaseTransaction transaction) throws DatabaseException {
         // TODO(hw5): modify for smarter locking
+
+        //start
+        if (lockContext != null) {
+            if (lockContext.saturation(transaction) >= 0.2 && lockContext.capacity() >= 10) {
+                lockContext.escalate(transaction);
+            }
+        }
+        //end
+
+        //start
+        LockUtil.requestLocks(transaction, lockContext, LockType.X);
+        //end
         for (Integer pageNum : freePageNums) {
             allocator.freePage(transaction, pageNum);
         }
@@ -468,6 +526,18 @@ public class Table implements Closeable {
     // Iterators /////////////////////////////////////////////////////////////////
     public TableIterator ridIterator(BaseTransaction transaction) {
         // TODO(hw5): reduce locking overhead for table scans
+
+        //start
+        if (lockContext != null) {
+            if (lockContext.saturation(transaction) >= 0.2 && lockContext.capacity() >= 10) {
+                lockContext.escalate(transaction);
+            }
+        }
+        //end
+
+        //start
+        LockUtil.requestLocks(transaction, lockContext, LockType.S);
+        //end
         return new TableIterator(transaction);
     }
 

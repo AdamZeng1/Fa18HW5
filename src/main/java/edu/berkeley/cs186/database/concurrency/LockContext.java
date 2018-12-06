@@ -90,6 +90,8 @@ public class LockContext {
         //check if the request is invalid
         if (!root) {
             if (getScore(LockType.parentLock(lockType)) > getScore(this.getGlobalLockType(transaction))) {
+                System.out.print("lock context debug: \n" + getScore(LockType.parentLock(lockType)) + " "
+                        + getScore(this.getGlobalLockType(transaction)) + "\n"); //debug
                 throw new InvalidLockException("the request is invalid");
             }
         }
@@ -97,6 +99,7 @@ public class LockContext {
         //Check duplicate lock request exception
         try {
             //acquire
+            System.out.print("acquiring lock...\n transaction: " + transaction + "\nname: " + name + "\nlocktype: " + lockType + "\n"); //debug
             this.lockman.acquire(transaction, name, lockType);
             //update numChildLocks
             LockContext parentIter = this.parent;
@@ -148,6 +151,7 @@ public class LockContext {
         try {
             //release
             this.lockman.release(transaction, name);
+            System.out.print("releasing locks...\ntransaction: " + transaction + "\nname: " + name); //debug
             //update numChildLocks
             LockContext parentIter = this.parent;
             while (parentIter != null) {

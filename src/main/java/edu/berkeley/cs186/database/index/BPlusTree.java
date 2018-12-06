@@ -131,6 +131,10 @@ public class BPlusTree implements Closeable {
 
         // Initialize the header page.
         writeHeader(transaction, headerPage);
+
+        //start
+        lockContext.disableChildLocks();
+        //end
     }
 
     /** Read a B+ tree that was previously serialized to filename. */
@@ -154,6 +158,10 @@ public class BPlusTree implements Closeable {
         this.metadata = new BPlusTreeMetadata(allocator, keySchema, order);
         this.headerPage = allocator.fetchPage(transaction, 0);
         this.root = BPlusNode.fromBytes(transaction, this.metadata, rootPageNum);
+
+        //start
+        lockContext.disableChildLocks();
+        //end
     }
 
     public void close() {

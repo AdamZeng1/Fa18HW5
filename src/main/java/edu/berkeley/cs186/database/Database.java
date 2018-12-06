@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.XMLFormatter;
 
 import edu.berkeley.cs186.database.common.BacktrackingIterator;
 import edu.berkeley.cs186.database.common.Pair;
@@ -24,6 +25,8 @@ import edu.berkeley.cs186.database.table.Schema;
 import edu.berkeley.cs186.database.table.Table;
 import edu.berkeley.cs186.database.table.stats.TableStats;
 import edu.berkeley.cs186.database.io.PageAllocator.PageIterator;
+
+import javax.annotation.Resource;
 
 public class Database {
     private Map<String, Table> tableLookup;
@@ -177,7 +180,16 @@ public class Database {
             assert(this.active);
 
             // TODO(hw5): release all locks
-            
+            //List<Pair<ResourceName, LockType>> temp = lockManager.getLocks(this);
+            System.out.print("start release all locks\n"); //debug
+            List<Pair<ResourceName, LockType>> lockList = lockManager.getLocks(this);
+            for (Pair<ResourceName, LockType> lockPair : lockList) {
+                ResourceName resourceName = lockPair.getFirst();
+                LockType lockType = lockPair.getSecond();
+                System.out.print("tableLockContext: " + this + " resource name: " + resourceName + "\n"); //debug
+                lockManager.release(this, resourceName);
+            }
+            System.out.print("finish release all locks\n"); //debug
 
             deleteAllTempTables();
             this.active = false;
@@ -198,6 +210,11 @@ public class Database {
             if (Database.this.tableLookup.containsKey(tableName)) {
                 throw new DatabaseException("Table name already exists");
             }
+
+            //hw5 add locking
+            //start
+            //LockUtil.requestLocks(this, tableContext, LockType.S);
+            //end
 
             Path path = Paths.get(fileDir, tableName + Table.FILENAME_EXTENSION);
             Database.this.tableLookup.put(tableName, new Table(tableName, s, path.toString(), tableContext,
@@ -347,6 +364,10 @@ public class Database {
             Path path = Paths.get(Database.this.fileDir, "temp", tempTableName + Table.FILENAME_EXTENSION);
             LockContext lockContext = lockManager.orphanContext("temp-" + tempTableName);
             // TODO(hw5): more efficient locking on temporary tables
+            //start
+            lockContext.disableChildLocks();
+            lockContext.acquire(this, LockType.X);
+            //end
             this.tempTables.put(tempTableName, new Table(tempTableName, schema, path.toString(), lockContext,
                                 this));
         }
@@ -366,6 +387,9 @@ public class Database {
                 Pair<String, BPlusTree> index = resolveIndexFromName(tableName, columnName);
 
                 // TODO(hw5): index locking, scan locking
+                //start
+                LockUtil.requestLocks(this, getIndexContext(index.getFirst()), LockType.S);
+                //end
 
                 return new RecordIterator(this, tab, index.getSecond().scanAll(this));
             } catch (DatabaseException e1) {
@@ -383,8 +407,14 @@ public class Database {
         public Iterator<Record> sortedScanFrom(String tableName, String columnName,
                                                DataBox startValue) throws DatabaseException {
             Table tab = getTable(tableName);
+            //start
+            LockUtil.requestLocks(this, getTableContext(tableName), LockType.S);
+            //end
             Pair<String, BPlusTree> index = resolveIndexFromName(tableName, columnName);
             // TODO(hw5): index locking, scan locking
+            //start
+            LockUtil.requestLocks(this, getIndexContext(index.getFirst()), LockType.S);
+            //end
             return new RecordIterator(this, tab, index.getSecond().scanGreaterEqual(this, startValue));
         }
 
@@ -394,6 +424,9 @@ public class Database {
             Pair<String, BPlusTree> index = resolveIndexFromName(tableName, columnName);
 
             // TODO(hw5): index locking
+            //start
+            LockUtil.requestLocks(this, getIndexContext(index.getFirst()), LockType.S);
+            //end
 
             return new RecordIterator(this, tab, index.getSecond().scanEqual(this, key));
         }
@@ -402,6 +435,9 @@ public class Database {
             Pair<String, BPlusTree> index = resolveIndexFromName(tableName, columnName);
 
             // TODO(hw5): index locking
+            //start
+            LockUtil.requestLocks(this, getIndexContext(index.getFirst()), LockType.S);
+            //end
 
             return index.getSecond().get(this, key).isPresent();
         }
@@ -498,6 +534,14 @@ public class Database {
         public RecordId runUpdateRecordWhere(String tableName, String targetColumnName, DataBox targetVaue,
                                              String predColumnName, DataBox predValue)  throws DatabaseException {
             // TODO(hw5): index locking
+            //start
+            List<String> indexStringList = tableIndices.get(tableName);
+            if (indexStringList != null) {
+                for (String index : indexStringList) {
+                    LockUtil.requestLocks(this, getIndexContext(index), LockType.X);
+                }
+            }
+            //end
 
             Table tab = getTable(tableName);
             Iterator<RecordId> recordIds = tab.ridIterator(this);

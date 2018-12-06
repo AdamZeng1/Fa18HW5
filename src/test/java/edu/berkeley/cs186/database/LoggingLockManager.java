@@ -95,7 +95,7 @@ public class LoggingLockManager extends LockManager {
     public void emit(String s) {
         if (logging) {
             log.add(s);
-            // System.out.println(s);
+            //System.out.println(s); //was comment out in original skeleton code
         }
     }
 }

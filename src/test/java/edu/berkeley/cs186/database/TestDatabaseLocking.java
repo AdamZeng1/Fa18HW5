@@ -252,6 +252,7 @@ public class TestDatabaseLocking {
         List<RecordId> rids = createTable(tableName, 4);
 
         lockManager.startLog();
+        System.out.print("Start logging\n\n\n\n\n"); //debug
 
         BaseTransaction t1 = db.beginTransaction();
         Iterator<Record> r = t1.getRecordIterator(tableName);
